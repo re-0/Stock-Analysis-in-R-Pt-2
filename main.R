@@ -74,6 +74,50 @@ tech.stocks.top5 %>%
   theme_tq() +
   scale_color_tq()
 
+### Compute Daily Returns and Betas
+stock_returns.daily <- tech.stocks %>%
+  tq_transmute(select     = adjusted,
+               mutate_fun = periodReturn,
+               period     = "daily",
+               type       = "arithmetic",
+               col_rename = "returns") %>%
+  spread(key = symbol, value = returns)
+
+sp500 <- tq_get("^GSPC", from = (today() - years(5)))
+ret.sp500 <- sp500 %>% tq_transmute(select     = adjusted,
+                                    mutate_fun = periodReturn,
+                                    period     = "daily",
+                                    type       = "arithmetic")
+  
+tnx <- tq_get("^TNX", from = (today() - years(5)))
+ret.tnx <- tnx %>% tq_transmute(select     = adjusted,
+                                mutate_fun = periodReturn,
+                                period     = "daily",
+                                type       = "arithmetic")
+## There was data missing. hence:
+## sp <- ret.sp500[,-2]
+## tx <- ret.tnx[,-2]
+## anti_join(sp, tx) # returns "2016-11-11"
+ret.tnx <- add_row(ret.tnx, date = "2016-11-11", daily.returns = 0)
+ret.tnx <- ret.tnx %>% arrange(date)
+
+stock_returns.daily <- add_column(stock_returns.daily,
+                                    SP500 = ret.sp500$daily.returns, TNX = ret.tnx$daily.returns)
+
+excess.Returns <- ((stock_returns.daily.2[, 1:ncol(stock_returns.daily.2)-1]) - stock_returns.daily.2$TNX)[,-1]
+
+# Returns a Vector with every beta
+# Note: Will throw a warning message for SP500 ~ SP500 (obviously)
+beta <- (sapply(colnames(excess.Returns),
+                function(x){
+                  summary(
+                    lm(
+                      excess.Returns[,x] ~ excess.Returns[, ncol(excess.Returns)])
+                    )$coefficients[2,1]
+                  }))
+
+# Remove SP500 ~ SP500
+beta <- beta[-length(beta)]
 
 # Uncomment to plot line graph of AAPL over one year
 # tq_get("AAPL") %>% 
@@ -83,70 +127,11 @@ tech.stocks.top5 %>%
 #               ma_fun = SMA, n = 50) + 
 #   coord_x_date(xlim = c(today() - years(1), today()), ylim = c(100, 170))
 
-# Compute Betas
-# Prepare data
-temp <- tech.stocks
-tmp.aapl <- temp %>% filter(symbol == "AAPL" & date >= (today() - years(1)) & date <= today())
-tmp.adbe <- temp %>% filter(symbol == "ADBE" & date >= (today() - years(1)) & date <= today())
-tmp.bidu <- temp %>% filter(symbol == "BIDU" & date >= (today() - years(1)) & date <= today())
-tmp.nvda <- temp %>% filter(symbol == "NVDA" & date >= (today() - years(1)) & date <= today())
-tmp.tsm  <- temp %>% filter(symbol == "TSM"  & date >= (today() - years(1)) & date <= today())
-
-ret.aapl <- unlist(diff(tmp.aapl$adjusted)/tmp.aapl[-nrow(tmp.aapl),   "adjusted"], use.names = FALSE)
-ret.adbe <- unlist(diff(tmp.adbe$adjusted)/tmp.adbe[-nrow(tmp.adbe),   "adjusted"], use.names = FALSE)
-ret.bidu <- unlist(diff(tmp.bidu$adjusted)/tmp.bidu[-nrow(tmp.bidu),   "adjusted"], use.names = FALSE)
-ret.nvda <- unlist(diff(tmp.nvda$adjusted)/tmp.nvda[-nrow(tmp.nvda),   "adjusted"], use.names = FALSE)
-ret.tsm  <- unlist(diff(tmp.tsm$adjusted)/tmp.tsm[-nrow(tmp.tsm),      "adjusted"], use.names = FALSE)
-
-# Get S&P 500 returns
-sp500 <- tq_get("^GSPC", from = (today() - years(1)))
-ret.sp500 <- unlist(diff(sp500$adjusted)/sp500[-nrow(sp500),   "adjusted"], use.names = FALSE)
-
-# Get T-Bill (10yrs) returns
-tnx <- tq_get("^TNX", from = (today() - years(1)))
-ret.tnx <- unlist(diff(tnx$adjusted)/tnx[-nrow(tnx),   "adjusted"], use.names = FALSE)
-
-xRet_AAPL   <- ret.aapl  - ret.tnx
-xRet_ADBE   <- ret.adbe  - ret.tnx
-xRet_BIDU   <- ret.bidu  - ret.tnx
-xRet_NVDA   <- ret.nvda  - ret.tnx
-xRet_TSM    <- ret.tsm   - ret.tnx
-xRet_SP.TNX <- ret.sp500 - ret.tnx
-
-beta.AAPL <- summary(lm(xRet_AAPL   ~ xRet_SP.TNX))$coefficients[2,1]
-beta.ADBE <- summary(lm(xRet_ADBE   ~ xRet_SP.TNX))$coefficients[2,1]
-beta.BIDU <- summary(lm(xRet_BIDU   ~ xRet_SP.TNX))$coefficients[2,1]
-beta.NVDA <- summary(lm(xRet_NVDA   ~ xRet_SP.TNX))$coefficients[2,1]
-beta.TSM  <- summary(lm(xRet_TSM    ~ xRet_SP.TNX))$coefficients[2,1]
-
-
-### Different approach to daily returns and beta
-### Not finished yet
-stock_returns.daily <- tech.stocks %>%
-  tq_transmute(select     = adjusted,
-               mutate_fun = periodReturn,
-               period     = "daily",
-               type       = "arithmetic",
-               col_rename = "returns") %>%
-  spread(key = symbol, value = returns)
-
-sp500.2 <- tq_get("^GSPC", from = (today() - years(5)))
-ret.sp500.2 <- sp500.2 %>% tq_transmute(select     = adjusted,
-                                      mutate_fun = periodReturn,
-                                      period     = "daily",
-                                      type       = "arithmetic")
-  
-tnx.2 <- tq_get("^TNX", from = (today() - years(5)))
-ret.tnx.2 <- tnx.2 %>% tq_transmute(select     = adjusted,
-                                        mutate_fun = periodReturn,
-                                        period     = "daily",
-                                        type       = "arithmetic")
-## There was data missing. hence:
-## sp <- ret.sp500.2[,-2]
-## tx <- ret.tnx.2[,-2]
-## anti_join(sp, tx) # returns "2016-11-11"
-ret.tnx.2 <- add_row(ret.tnx.2, date = "2016-11-11", daily.returns = 0)
-ret.tnx.2 <- ret.tnx.2 %>% arrange(date)
-
-stock_returns.daily <- add_column(stock_returns.daily,
-                                    SP500 = ret.sp500.2$daily.returns, TNX = ret.tnx.2$daily.returns)
+# Old way I computed beta
+# temp <- tech.stocks
+# tmp.aapl <- temp %>% filter(symbol == "AAPL" & date >= (today() - years(1)) & date <= today()) 
+# ret.aapl <- unlist(diff(tmp.aapl$adjusted)/tmp.aapl[-nrow(tmp.aapl),   "adjusted"], use.names = FALSE)
+## Getting S&P 500 & T-Bill returns
+# xRet_AAPL   <- ret.aapl  - ret.tnx
+# beta.AAPL <- summary(lm(xRet_AAPL   ~ xRet_SP.TNX))$coefficients[2,1]
+# ...

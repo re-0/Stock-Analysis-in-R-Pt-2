@@ -104,7 +104,7 @@ ret.tnx <- ret.tnx %>% arrange(date)
 stock_returns.daily <- add_column(stock_returns.daily,
                                     SP500 = ret.sp500$daily.returns, TNX = ret.tnx$daily.returns)
 
-excess.Returns <- ((stock_returns.daily.2[, 1:ncol(stock_returns.daily.2)-1]) - stock_returns.daily.2$TNX)[,-1]
+excess.Returns <- ((stock_returns.daily[, 1:ncol(stock_returns.daily)-1]) - stock_returns.daily$TNX)[,-1]
 
 # Returns a Vector with every beta
 # Note: Will throw a warning message for SP500 ~ SP500 (obviously)
